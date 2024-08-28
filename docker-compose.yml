@@ -1,0 +1,60 @@
+version: '3.9'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./docker/app/Dockerfile
+    volumes:
+      - ./app:/app
+    restart: unless-stopped
+    command: "uvicorn main:app--reload"
+    ports:
+      - ${API_HTTP_EXPOSE_PORT?Variable not set}:${API_HTTP_PORT?Variable not set}
+    environment:
+      - PROJECT_NAME=${PROJECT_NAME?Variable not set}
+      # DB variable on app/config.py
+      - POSTGRES_DB_SERVER=${POSTGRES_DB_SERVER?Variable not set}
+      - POSTGRES_DB_PORT=${POSTGRES_DB_PORT?Variable not set}
+      - POSTGRES_DB_EXPOSE_PORT=${POSTGRES_DB_EXPOSE_PORT?Variable not set}
+      - POSTGRES_DB_API=${POSTGRES_DB_API?Variable not set}
+      - POSTGRES_DB_API_USER=${POSTGRES_DB_API_USER?Variable not set}
+      - POSTGRES_DB_API_PASSWORD=${POSTGRES_DB_API_PASSWORD?Variable not set}
+      # api variable on app/config.py
+      - API_HTTP_PORT=${API_HTTP_PORT?Variable not set}
+      - API_VERSION=${API_VERSION?Variable not set}
+      - PROXY_ROOT_PATH=${PROXY_ROOT_PATH?Variable not set}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    build: 
+      context: .
+      dockerfile: ./docker/datastore/Dockerfile
+    container_name: ${CONTAINER_ID_NAME?Variable not set}-db
+    restart: unless-stopped
+    volumes:
+      - postgre_data:/var/lib/postgresql/data
+      - ./docker/db:/docker-entrypoint-initdb.d
+    ports:
+      - ${POSTGRES_DB_EXPOSE_PORT?Variable not set}:${POSTGRES_DB_PORT?Variable not set} # expose to 5434
+    environment:
+      POSTGRES_USER: ${POSTGRES_DB_API_USER?Variable not set}
+      POSTGRES_PASSWORD: ${POSTGRES_DB_API_PASSWORD?Variable not set}
+      POSTGRES_DB_EXPOSE_PORT: ${POSTGRES_DB_EXPOSE_PORT?Variable not set}
+      POSTGRES_DB_API: ${POSTGRES_DB_API?Variable not set}set}
+      TZ: "Asia/Jakarta" # Add timezone
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_DB_API_USER?Variable not set} -d ${POSTGRES_DB_API?Variable not set}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgre_data:
+
+
+networks:
+  default:
+    external:
+      name: ${PROJECT_NETWORK?Variable not set}
